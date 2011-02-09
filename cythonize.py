@@ -4,6 +4,7 @@ import os, sys
 from os import path
 import shutil
 import inspect
+import imp
 from hashlib import md5
 
 import subprocess
@@ -18,13 +19,29 @@ def cythonize(func):
     m = md5(sourcestr)
     sourcehash = "%s_%s" % (func.__name__, m.hexdigest())
     fname = "%s.pyx" % sourcehash
-    dirname = setup(dirname=sourcehash, fname=fname, source=sourcestr)
-    compile_extmod(dirname)
-    mod = import_extmod(dirname, sourcehash)
+    mod_dir = get_dirname(sourcehash)
+    try:
+        mod = import_extmod(mod_dir, sourcehash)
+    except ImportError:
+        setup(dirname=mod_dir, fname=fname, source=sourcestr)
+        cond_compile_extmod(mod_dir)
+        mod = import_extmod(mod_dir, sourcehash)
     return getattr(mod, func.__name__)
 
 def cleansourcelines(slines):
     return [sl for sl in slines if not sl.startswith('@cythonize')]
+
+def find_module(name, path):
+    old_path = sys.path
+    sys.path = [os.path.join(path, 'build')] + old_path
+    try:
+        return imp.find_module(name)
+    finally:
+        sys.path = old_path
+    return mod
+
+def get_dirname(hsh):
+    return path.join(os.curdir, CYTHONIZE_DIR, hsh)
 
 def modfromfname(fname):
     if fname.endswith('.pyx'):
@@ -33,7 +50,6 @@ def modfromfname(fname):
         return fname[:-len('.py')]
 
 def setup(dirname, fname, source):
-    dirname = path.join(os.curdir, CYTHONIZE_DIR, dirname)
     modname = modfromfname(fname)
     try:
         os.makedirs(dirname)
@@ -48,27 +64,28 @@ def setup(dirname, fname, source):
     full_wscript = path.join(dirname, 'wscript')
     with open(full_wscript, 'w') as fh:
         fh.write(wscript_src % {'modname' : modname})
-    return dirname
 
-def compile_extmod(dirname):
+def cond_compile_extmod(dirname):
     odir = path.abspath(os.curdir)
     os.chdir(dirname)
     set_cython = 'CYTHON=/Users/ksmith/fwrap/ve-python25/bin/cython'
     exe_str = ' '.join(
                         [set_cython,
                         sys.executable,
-                        './waf distclean configure build'])
+                        './waf configure build'])
     try:
         subprocess.check_call(exe_str, shell=True)
     finally:
         os.chdir(odir)
 
 def import_extmod(dirname, modname):
-    sys.path.insert(0, os.path.join(dirname, 'build'))
+    import pdb; pdb.set_trace()
+    old_path = sys.path
+    sys.path = [os.path.join(dirname, 'build')] + old_path
     try:
         mod = __import__(modname)
     finally:
-        sys.path.pop(0)
+        sys.path = old_path
     return mod
 
 wscript_src = '''
