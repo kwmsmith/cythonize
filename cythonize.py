@@ -31,15 +31,6 @@ def cythonize(func):
 def cleansourcelines(slines):
     return [sl for sl in slines if not sl.startswith('@cythonize')]
 
-def find_module(name, path):
-    old_path = sys.path
-    sys.path = [os.path.join(path, 'build')] + old_path
-    try:
-        return imp.find_module(name)
-    finally:
-        sys.path = old_path
-    return mod
-
 def get_dirname(hsh):
     return path.join(os.curdir, CYTHONIZE_DIR, hsh)
 
@@ -79,9 +70,16 @@ def cond_compile_extmod(dirname):
         os.chdir(odir)
 
 def import_extmod(dirname, modname):
-    import pdb; pdb.set_trace()
+    # the build_dir must exist before calling __import__, or else things
+    # won't work on the **second** import...
+    build_dir = os.path.join(dirname, 'build')
+    try:
+        os.makedirs(build_dir)
+    except OSError:
+        pass
+
     old_path = sys.path
-    sys.path = [os.path.join(dirname, 'build')] + old_path
+    sys.path = [build_dir] + old_path
     try:
         mod = __import__(modname)
     finally:

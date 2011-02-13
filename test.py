@@ -1,8 +1,11 @@
 from cythonize import cythonize
 
 @cythonize
-# @cython.locals(a=cython.int, b=cython.int)
 def foo(a, b):
     return a +b
 
-print foo(3, 4)
+def foo_slow(a, b):
+    return a + b
+
+print foo(1, 2)
+print foo_slow(1, 2)
